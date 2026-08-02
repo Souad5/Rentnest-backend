@@ -1,5 +1,6 @@
 import express, { type Request, type Response } from "express";
 import cors from "cors";
+import authRoutes from "./routes/auth.routes";
 import paymentRoutes from "./routes/payment.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 
@@ -9,6 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/payments", paymentRoutes);
 
 // Health Check
