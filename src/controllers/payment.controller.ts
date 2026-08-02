@@ -40,6 +40,10 @@ export const createPaymentIntent = async (
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: "usd",
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: "never", // 👈 Add this line to prevent redirect requirements
+      },
       metadata: {
         rentalRequestId,
         userId,
@@ -88,8 +92,17 @@ export const confirmPayment = async (
   try {
     const { paymentIntentId } = req.body;
 
-    // Retrieve status from Stripe API directly
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    let paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    // 🛠️ Auto-confirm in non-production environments if payment method hasn't been attached yet
+    if (
+      paymentIntent.status === "requires_payment_method" &&
+      process.env.NODE_ENV !== "production"
+    ) {
+      paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
+        payment_method: "pm_card_visa",
+      });
+    }
 
     if (paymentIntent.status !== "succeeded") {
       throw new AppError(
