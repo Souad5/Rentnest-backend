@@ -31,3 +31,17 @@ export const authenticate = (
     next(new AppError(401, "Invalid or expired token."));
   }
 };
+
+export const authorize = (...roles: string[]) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return next(
+        new AppError(
+          403,
+          "Forbidden: You do not have permission to access this resource",
+        ),
+      );
+    }
+    next();
+  };
+};
