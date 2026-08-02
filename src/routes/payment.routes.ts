@@ -1,9 +1,5 @@
 import { Router } from "express";
-import {
-  createPaymentIntent,
-  confirmPayment,
-  getUserPayments,
-} from "../controllers/payment.controller";
+import * as paymentController from "../controllers/payment.controller";
 import { authenticate } from "../middlewares/auth";
 import { validate } from "../middlewares/validate";
 import {
@@ -13,14 +9,19 @@ import {
 
 const router = Router();
 
-router.use(authenticate); // Require login for all payment endpoints
+// Require login for all payment endpoints
+router.use(authenticate);
 
 router.post(
   "/create",
   validate(createPaymentIntentSchema),
-  createPaymentIntent,
+  paymentController.createPaymentIntent,
 );
-router.post("/confirm", validate(confirmPaymentSchema), confirmPayment);
-router.get("/", getUserPayments);
+router.post(
+  "/confirm",
+  validate(confirmPaymentSchema),
+  paymentController.confirmPayment,
+);
+router.get("/", paymentController.getUserPayments);
 
 export default router;

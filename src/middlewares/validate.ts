@@ -1,8 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import { ZodObject } from "zod";
 
-export const validate = (schema: ZodObject) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+export const validate = (schema: ZodObject<any>) => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       await schema.parseAsync({
         body: req.body,
@@ -11,7 +15,7 @@ export const validate = (schema: ZodObject) => {
       });
       next();
     } catch (error) {
-      next(error); // Passes Zod error directly to your custom errorHandler
+      next(error);
     }
   };
 };
