@@ -2,6 +2,7 @@ import express, { type Request, type Response } from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import propertyRoutes from "./routes/property.routes";
+import rentalRoutes from "./routes/rental.routes";
 import paymentRoutes from "./routes/payment.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 
@@ -13,6 +14,7 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/properties", propertyRoutes);
+app.use("/api/rentals", rentalRoutes);
 app.use("/api/payments", paymentRoutes);
 
 // Health Check
