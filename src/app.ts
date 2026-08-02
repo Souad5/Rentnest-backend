@@ -5,6 +5,7 @@ import propertyRoutes from "./routes/property.routes";
 import rentalRoutes from "./routes/rental.routes";
 import paymentRoutes from "./routes/payment.routes";
 import adminRoutes from "./routes/admin.routes";
+import reviewRoutes from "./routes/review.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 
 const app = express();
@@ -18,6 +19,7 @@ app.use("/api/properties", propertyRoutes);
 app.use("/api/rentals", rentalRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 // Health Check
 app.get("/", (req: Request, res: Response) => {
