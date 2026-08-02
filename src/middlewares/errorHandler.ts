@@ -29,6 +29,7 @@ export const errorHandler = (
       field: issue.path.join("."),
       message: issue.message,
     }));
+    1;
   }
 
   res.status(statusCode).json({
