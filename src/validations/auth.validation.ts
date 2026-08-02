@@ -12,9 +12,7 @@ export const registerSchema = z.object({
       .string()
       .min(6, { message: "Password must be at least 6 characters long" }),
     role: z.enum(["TENANT", "LANDLORD"], {
-      errorMap: () => ({
-        message: "Role must be either 'TENANT' or 'LANDLORD'",
-      }),
+      message: "Role must be either 'TENANT' or 'LANDLORD'",
     }),
   }),
 });
