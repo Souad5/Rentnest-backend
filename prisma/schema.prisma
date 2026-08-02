@@ -1,13 +1,111 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
-generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
-}
-
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  TENANT
+  LANDLORD
+  ADMIN
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(TENANT)
+  isBanned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  properties     Property[]       @relation("LandlordProperties")
+  rentalRequests RentalRequest[]  @relation("TenantRentals")
+  payments       Payment[]
+  reviews        Review[]
+}
+
+model Category {
+  id         String     @id @default(uuid())
+  name       String     @unique
+  properties Property[]
+}
+
+model Property {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  address     String
+  location    String
+  price       Float
+  isAvailable Boolean  @default(true)
+  landlordId  String
+  categoryId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  landlord       User            @relation("LandlordProperties", fields: [landlordId], references: [id], onDelete: Cascade)
+  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  rentalRequests RentalRequest[]
+  reviews        Review[]
+}
+
+model RentalRequest {
+  id         String        @id @default(uuid())
+  tenantId   String
+  propertyId String
+  startDate  DateTime
+  endDate    DateTime
+  status     RequestStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  tenant   User      @relation("TenantRentals", fields: [tenantId], references: [id], onDelete: Cascade)
+  property Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  payment  Payment?
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  rentalRequestId String        @unique
+  userId          String
+  amount          Float
+  transactionId   String        @unique
+  provider        String        @default("STRIPE")
+  status          PaymentStatus @default(PENDING)
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+
+  rentalRequest RentalRequest @relation(fields: [rentalRequestId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  tenantId   String
+  propertyId String
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  tenant   User     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
