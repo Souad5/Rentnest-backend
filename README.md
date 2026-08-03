@@ -1,189 +1,227 @@
-````markdown
-# 🏢 RentNest — Modern Property Rental Backend & API Platform
+# 🏢 RentNest Backend
 
-RentNest is a robust, type-safe backend platform for property rentals. Built with **Node.js v24**, **Express v5**, **TypeScript**, **Prisma v6**, and **NeonDB (PostgreSQL)**, it supports real-time property management, tenant rental requests, role-based workflows, automated reviews, and payment processing via **Stripe** and **SSLCommerz**.
+> A modern property rental backend built with **Node.js**, **Express**, **TypeScript**, **Prisma**, and **PostgreSQL (NeonDB)**.
 
----
+![Node.js](https://img.shields.io/badge/Node.js-v24-green)
+![Express](https://img.shields.io/badge/Express-v5-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
+![Prisma](https://img.shields.io/badge/Prisma-v6-2D3748)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-NeonDB-336791)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
-## 🚀 Tech Stack & Core Infrastructure
-
-- **Runtime Engine**: [Node.js v24 (LTS)](https://nodejs.org/)
-- **Framework**: [Express v5](https://expressjs.com/) (strict route error safety)
-- **Language**: [TypeScript](https://www.typescriptlang.org/) (configured with strict `exactOptionalPropertyTypes: true`)
-- **Database ORM**: [Prisma v6](https://www.prisma.io/)
-- **Database**: [NeonDB](https://neon.tech/) (Serverless Postgres)
-- **Authentication**: JWT (JSON Web Tokens) with hashed passwords using `bcryptjs`
-- **Payment Gateways**: [Stripe](https://stripe.com/) & [SSLCommerz](https://sslcommerz.com/)
-- **Deployment Platform**: [Vercel Serverless Functions](https://vercel.com/)
+RentNest is a scalable backend API for managing rental properties. It provides authentication, role-based access control, rental request workflows, property management, reviews, and online payment integration using **Stripe** and **SSLCommerz**.
 
 ---
 
-## 🎯 Key Features & Capabilities
+## ✨ Features
 
-### 🔐 Authentication & Roles
+### 🔐 Authentication & Authorization
 
-- **Multi-Role RBAC**: Built-in support for `TENANT`, `LANDLORD`, and `ADMIN`.
-- **JWT Middleware**: Token-based authorization across protected endpoints with auto-injection capabilities.
+- JWT-based authentication
+- Password hashing with **bcryptjs**
+- Role-based access control (RBAC)
+- Supported roles:
+  - Tenant
+  - Landlord
+  - Admin
 
-### 🏠 Property & Listing Engine
+### 🏠 Property Management
 
-- **Advanced Filtering**: Search by location, price ranges, categories, and keyword queries.
-- **Landlord Dashboard**: Real-time property listing lifecycle (create, update, archive/delete).
+- Create, update, and delete properties
+- Property search & filtering
+- Category support
+- Price filtering
+- Location search
 
-### 📋 Rental Requests Workflow
+### 📋 Rental Requests
 
-- **Application Pipeline**: Tenants submit requests with custom dates; landlords approve or decline requests.
-- **Cascade Control**: Automated validation to ensure properties cannot be double-booked across overlapping durations.
+- Submit rental requests
+- Approve or reject requests
+- Prevent overlapping bookings
+- Booking validation
 
-### 💳 Payment System
+### 💳 Payments
 
-- **Multi-Gateway Ready**: Initiate payment intents or checkout sessions via **Stripe** or **SSLCommerz**.
-- **Verification Callbacks**: Webhooks and confirmation handlers to mark bookings active upon successful payment.
+- Stripe integration
+- SSLCommerz integration
+- Payment verification
+- Webhook support
 
-### ⭐ Reviews & Admin Management
+### ⭐ Reviews
 
-- **Verified Reviews**: Only tenants with approved/completed rentals can leave ratings and detailed reviews.
-- **Admin Moderation**: System-wide control to ban/unban users, delete problematic listings, and audit platform activity.
+- Verified tenant reviews
+- Ratings & comments
+- Review moderation
+
+### 👨‍💼 Admin Features
+
+- User management
+- Ban / unban users
+- Delete listings
+- Platform moderation
 
 ---
 
-## 🛠️ Project Structure
+# 🛠 Tech Stack
+
+| Technology | Description |
+|------------|-------------|
+| Node.js v24 | Runtime |
+| Express v5 | Backend Framework |
+| TypeScript | Programming Language |
+| Prisma ORM | Database ORM |
+| PostgreSQL (NeonDB) | Database |
+| JWT | Authentication |
+| bcryptjs | Password Hashing |
+| Stripe | Payment Gateway |
+| SSLCommerz | Payment Gateway |
+| Vercel | Deployment |
+
+---
+
+# 📁 Project Structure
 
 ```text
 RentNest-Backend/
 ├── prisma/
-│   ├── schema.prisma         # Database models & relationships
-│   └── migrations/           # Database schema migrations
+│   ├── schema.prisma
+│   └── migrations/
+│
 ├── src/
-│   ├── config/               # Prisma client & environment configuration
-│   ├── controllers/          # Express route controllers
-│   ├── middlewares/          # Auth, error, and validation middlewares
-│   ├── routes/               # API endpoint route definitions
-│   ├── services/             # Payment & external integration logic
-│   ├── types/                # Custom TypeScript type declarations
-│   ├── utils/                # Helper functions & app utilities
-│   └── app.ts                # App initialization & server entrypoint
+│   ├── config/
+│   ├── controllers/
+│   ├── middlewares/
+│   ├── routes/
+│   ├── services/
+│   ├── types/
+│   ├── utils/
+│   └── app.ts
+│
 ├── postman/
-│   ├── postman_collection.json # Ready-to-import Postman API collection
-│   └── README.md             # Detailed Postman guide
-├── .env.example              # Environment variables template
-├── build.js / tsconfig.json  # TypeScript strict compiler configuration
-├── vercel.json               # Deployment config for Vercel Serverless
-└── package.json
+│   ├── postman_collection.json
+│   └── README.md
+│
+├── .env.example
+├── package.json
+├── tsconfig.json
+├── vercel.json
+└── README.md
 ```
-````
 
 ---
 
-## ⚙️ Environment Configuration
+# ⚙️ Environment Variables
 
-Create a `.env` file in the project root directory based on the template below:
+Create a `.env` file in the project root.
 
 ```env
-# Node Environment
 NODE_ENV=development
 PORT=5000
 
-# Database Connection (NeonDB / PostgreSQL)
-DATABASE_URL="postgresql://user:password@ep-sample-12345.us-east-2.aws.neon.tech/rentnest?sslmode=require"
+DATABASE_URL="postgresql://user:password@host/database?sslmode=require"
 
-# JWT Auth
-JWT_SECRET="your_ultra_secure_jwt_secret"
+JWT_SECRET="your_jwt_secret"
 JWT_EXPIRES_IN="7d"
 
-# Stripe Gateway
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 
-# SSLCommerz Gateway (Optional)
 SSLCOMMERZ_STORE_ID="store_id"
 SSLCOMMERZ_STORE_PASSWORD="store_password"
 SSLCOMMERZ_IS_LIVE=false
 
-# Client URL (CORS Configuration)
-CLIENT_URL="http://localhost:5000" || "https://rentnest-backend-five.vercel.app"
-
+CLIENT_URL=http://localhost:3000
 ```
 
 ---
 
-## 💻 Local Development Setup
+# 🚀 Getting Started
 
-### 1. Prerequisites
-
-- **Node.js**: v24.0.0 or higher
-- **npm**: v10.0.0 or higher
-- **PostgreSQL / NeonDB account**
-
-### 2. Installation
+## 1. Clone the Repository
 
 ```bash
-# Clone the repository
-git clone [https://github.com/Souad5/Rentnest-backend.git](https://github.com/Souad5/Rentnest-backend.git)
-cd rentnest-backend
+git clone https://github.com/Souad5/Rentnest-backend.git
 
-# Install dependencies
+cd Rentnest-backend
+```
+
+## 2. Install Dependencies
+
+```bash
 npm install
-
 ```
 
-### 3. Database Migration & Prisma Generation
+## 3. Configure Environment Variables
+
+Create a `.env` file using `.env.example`.
+
+## 4. Run Database Migrations
 
 ```bash
-# Run migrations to initialize schema on NeonDB
-npx prisma migrate dev --name init
+npx prisma migrate dev
+```
 
-# Generate Prisma Client
+## 5. Generate Prisma Client
+
+```bash
 npx prisma generate
-
 ```
 
-### 4. Start Local Development Server
+## 6. Start the Development Server
 
 ```bash
-# Start server in watch mode
 npm run dev
-
 ```
 
-The backend server will run on `http://localhost:5000`.
+The server will start at:
+
+```
+http://localhost:5000
+```
 
 ---
 
-## 📦 Build & Production Deployment
+# 📦 Production Build
 
-### Local Build Test
-
-Verify that all strict TypeScript checks compile cleanly:
+Build the project:
 
 ```bash
 npm run build
-
 ```
-
-### Deploying to Vercel
-
-1. Ensure `vercel.json` is configured for Express serverless routing.
-2. Push your code to GitHub.
-3. Import the repository into your **Vercel Dashboard**.
-4. Configure environment variables (`DATABASE_URL`, `JWT_SECRET`, `STRIPE_SECRET_KEY`, etc.) in Vercel Project Settings.
-5. Deploy! Vercel will run the build script automatically.
 
 ---
 
-## 🧪 API Documentation & Postman
+# ☁️ Deploy to Vercel
 
-A fully functional Postman Collection v2.1.0 with auto-token population is provided in the `docs/` folder.
-
-- **Postman Collection**: `docs/postman_collection.json`
-- **Integration Guide**: Refer to `docs/README.md` for import instructions and testing workflows.
+1. Push your code to GitHub.
+2. Import the repository into Vercel.
+3. Configure all required environment variables.
+4. Deploy.
 
 ---
 
-## 📄 License
+# 🧪 API Testing
 
-This project is licensed under the [MIT License](https://www.google.com/search?q=LICENSE).
-
-```
+A ready-to-use Postman collection is included.
 
 ```
+postman/
+├── postman_collection.json
+└── README.md
+```
+
+Import the collection into Postman and follow the guide inside the `postman` folder.
+
+---
+
+# 📄 License
+
+This project is licensed under the **MIT License**.
+
+---
+
+## 👨‍💻 Author
+
+**Souad**
+
+GitHub: https://github.com/Souad5
