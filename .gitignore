@@ -22,3 +22,28 @@ yarn-error.log*
 # OS / Editor junk
 .DS_Store
 .vscode/
+.vercel
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+
+# Build output
+dist/
+
+# Vercel & Editor metadata
+.vercel/
+.agents/
+.claude/
+.windsurf/
+
+# TypeScript build info
+*.tsbuildinfo
+
+.agents
+.claude
+
+.windsurf

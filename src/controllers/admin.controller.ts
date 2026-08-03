@@ -51,7 +51,7 @@ export const toggleUserBan = async (
   next: NextFunction,
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { isBanned } = req.body;
     const currentAdminId = req.user!.id;
 
@@ -163,7 +163,7 @@ export const updateCategory = async (
   next: NextFunction,
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const category = await prisma.category.findUnique({ where: { id } });
 
@@ -193,11 +193,15 @@ export const deleteCategory = async (
   next: NextFunction,
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const category = await prisma.category.findUnique({
       where: { id },
-      include: { _count: { select: { properties: true } } },
+      include: {
+        _count: {
+          select: { properties: true },
+        },
+      },
     });
 
     if (!category) {
@@ -217,6 +221,55 @@ export const deleteCategory = async (
       success: true,
       message: "Category deleted successfully",
       data: null,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// SYSTEM RENTAL MANAGEMENT
+// ==========================================
+
+// 7. Get All System Rental Requests (Admin)
+export const getAllSystemRentals = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const rentals = await prisma.rentalRequest.findMany({
+      include: {
+        tenant: {
+          select: { id: true, name: true, email: true },
+        },
+        property: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            landlord: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            provider: true,
+            paidAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "All system rental requests retrieved successfully",
+      data: rentals,
     });
   } catch (error) {
     next(error);

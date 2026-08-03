@@ -4,13 +4,14 @@
   "description": "Backend service for RentNest rental marketplace",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "webhook:stripe": "stripe listen --forward-to localhost:3000/api/payments/webhook"
+    "webhook:stripe": "stripe listen --forward-to localhost:3000/api/payments/webhook",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",

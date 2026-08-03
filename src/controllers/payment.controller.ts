@@ -163,3 +163,62 @@ export const getUserPayments = async (
     next(error);
   }
 };
+
+// 4. Get Payment Details by ID
+export const getPaymentById = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const id = req.params.id as string;
+    const userId = req.user!.id;
+    const userRole = req.user!.role;
+
+    const payment = await prisma.payment.findUnique({
+      where: { id },
+      include: {
+        rentalRequest: {
+          include: {
+            property: {
+              select: {
+                id: true,
+                title: true,
+                address: true,
+                price: true,
+                landlordId: true,
+              },
+            },
+            tenant: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      throw new AppError(404, "Payment record not found");
+    }
+
+    // Access check: Only the tenant who paid, the landlord receiving rent, or an Admin
+    const isPayer = payment.userId === userId;
+    const isLandlord = payment.rentalRequest?.property?.landlordId === userId;
+    const isAdmin = userRole === "ADMIN";
+
+    if (!isPayer && !isLandlord && !isAdmin) {
+      throw new AppError(
+        403,
+        "You do not have permission to view this payment record",
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Payment details retrieved successfully",
+      data: payment,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

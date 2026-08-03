@@ -16,13 +16,16 @@ router.use(authenticate, authorize("ADMIN"));
 // User Management Routes
 router.get("/users", adminController.getAllUsers);
 router.patch(
-  "/users/:id/ban",
+  "/users/:id",
   validate(banUserSchema),
   adminController.toggleUserBan,
 );
 
 // Property Management Routes
 router.get("/properties", adminController.getAllSystemProperties);
+
+// Rental Request Management Routes
+router.get("/rentals", adminController.getAllSystemRentals);
 
 // Category Management Routes
 router.post(

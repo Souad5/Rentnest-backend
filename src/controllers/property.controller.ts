@@ -88,7 +88,7 @@ export const getPropertyById = async (
   next: NextFunction,
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const property = await prisma.property.findUnique({
       where: { id },
@@ -164,7 +164,7 @@ export const updateProperty = async (
   next: NextFunction,
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const landlordId = req.user!.id;
 
     const existingProperty = await prisma.property.findUnique({
@@ -204,7 +204,7 @@ export const deleteProperty = async (
   next: NextFunction,
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const landlordId = req.user!.id;
 
     const existingProperty = await prisma.property.findUnique({

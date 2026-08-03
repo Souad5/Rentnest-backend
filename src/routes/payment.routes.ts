@@ -22,6 +22,11 @@ router.post(
   validate(confirmPaymentSchema),
   paymentController.confirmPayment,
 );
+
+// GET /api/payments (Payment History)
 router.get("/", paymentController.getUserPayments);
+
+// GET /api/payments/:id (Payment Details)
+router.get("/:id", paymentController.getPaymentById);
 
 export default router;

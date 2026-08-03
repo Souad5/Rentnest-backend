@@ -17,7 +17,7 @@ export const createReview = async (
 
     // Verify property exists
     const property = await prisma.property.findUnique({
-      where: { id: propertyId },
+      where: { id: propertyId as string },
     });
 
     if (!property) {
@@ -87,7 +87,7 @@ export const getPropertyReviews = async (
   next: NextFunction,
 ) => {
   try {
-    const { propertyId } = req.params;
+    const propertyId = req.params.propertyId as string;
 
     const reviews = await prisma.review.findMany({
       where: { propertyId },
@@ -106,14 +106,13 @@ export const getPropertyReviews = async (
         rating: true,
       },
       _count: {
-        rating: true,
+        _all: true,
       },
     });
 
-    const averageRating = aggregate._avg.rating
-      ? Number(aggregate._avg.rating.toFixed(1))
-      : 0;
-    const totalReviews = aggregate._count.rating;
+    const avg = aggregate._avg?.rating;
+    const averageRating = avg ? Number(avg.toFixed(1)) : 0;
+    const totalReviews = aggregate._count?._all ?? 0;
 
     res.status(200).json({
       success: true,

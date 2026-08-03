@@ -5,10 +5,6 @@ import { type AuthRequest } from "../middlewares/auth";
 
 const prisma = new PrismaClient();
 
-// ==========================================
-// TENANT ENDPOINTS
-// ==========================================
-
 // 1. Submit a Rental Request (Tenant)
 export const createRentalRequest = async (
   req: AuthRequest,
@@ -19,7 +15,6 @@ export const createRentalRequest = async (
     const tenantId = req.user!.id;
     const { propertyId, startDate, endDate, specialNotes } = req.body;
 
-    // Check if property exists and is available
     const property = await prisma.property.findUnique({
       where: { id: propertyId },
     });
@@ -35,7 +30,6 @@ export const createRentalRequest = async (
       );
     }
 
-    // Prevent Landlords from renting their own property
     if (property.landlordId === tenantId) {
       throw new AppError(
         400,
@@ -43,7 +37,6 @@ export const createRentalRequest = async (
       );
     }
 
-    // Check if tenant already has a pending request for this property
     const existingRequest = await prisma.rentalRequest.findFirst({
       where: {
         propertyId,
@@ -59,7 +52,6 @@ export const createRentalRequest = async (
       );
     }
 
-    // Create rental request
     const rentalRequest = await prisma.rentalRequest.create({
       data: {
         tenantId,
@@ -86,7 +78,7 @@ export const createRentalRequest = async (
   }
 };
 
-// 2. Get Tenant's Own Rental Requests (My Requests)
+// 2. Get Tenant's Own Rental Requests
 export const getMyRentalRequests = async (
   req: AuthRequest,
   res: Response,
@@ -120,99 +112,53 @@ export const getMyRentalRequests = async (
   }
 };
 
-// ==========================================
-// LANDLORD ENDPOINTS
-// ==========================================
-
-// 3. Get Landlord's Received Requests (Requests for Landlord's Properties)
-export const getLandlordRequests = async (
+// 3. Get Rental Request By ID
+export const getRentalRequestById = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const landlordId = req.user!.id;
-
-    const requests = await prisma.rentalRequest.findMany({
-      where: {
-        property: { landlordId },
-      },
-      include: {
-        tenant: {
-          select: { id: true, name: true, email: true },
-        },
-        property: true,
-        payment: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Landlord requests fetched successfully",
-      data: requests,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// 4. Update Request Status (Approve / Reject) (Landlord)
-export const updateRequestStatus = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
+    const id = req.params.id as string;
     const userId = req.user!.id;
+    const userRole = req.user!.role;
 
     const rentalRequest = await prisma.rentalRequest.findUnique({
       where: { id },
-      include: { property: true },
+      include: {
+        property: {
+          include: {
+            landlord: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+        tenant: {
+          select: { id: true, name: true, email: true },
+        },
+        payment: true,
+      },
     });
 
     if (!rentalRequest) {
       throw new AppError(404, "Rental request not found");
     }
 
-    // Authorization: Landlord of the property OR Admin OR Tenant cancelling their own request
-    const isLandlord = rentalRequest.property.landlordId === userId;
     const isTenant = rentalRequest.tenantId === userId;
-    const isAdmin = req.user!.role === "ADMIN";
+    const isLandlord = rentalRequest.property.landlordId === userId;
+    const isAdmin = userRole === "ADMIN";
 
-    if (status === "CANCELLED" && !isTenant && !isAdmin) {
+    if (!isTenant && !isLandlord && !isAdmin) {
       throw new AppError(
         403,
-        "Only the tenant who created this request can cancel it",
+        "You do not have permission to view this rental request",
       );
     }
-
-    if (
-      (status === "APPROVED" || status === "REJECTED") &&
-      !isLandlord &&
-      !isAdmin
-    ) {
-      throw new AppError(
-        403,
-        "Only the property landlord can approve or reject requests",
-      );
-    }
-
-    const updatedRequest = await prisma.rentalRequest.update({
-      where: { id },
-      data: { status },
-      include: {
-        tenant: { select: { id: true, name: true, email: true } },
-        property: { select: { id: true, title: true } },
-      },
-    });
 
     res.status(200).json({
       success: true,
-      message: `Rental request ${status.toLowerCase()} successfully`,
-      data: updatedRequest,
+      message: "Rental request retrieved successfully",
+      data: rentalRequest,
     });
   } catch (error) {
     next(error);

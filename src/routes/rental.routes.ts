@@ -2,14 +2,10 @@ import { Router } from "express";
 import * as rentalController from "../controllers/rental.controller";
 import { authenticate, authorize } from "../middlewares/auth";
 import { validate } from "../middlewares/validate";
-import {
-  createRentalRequestSchema,
-  updateRentalStatusSchema,
-} from "../validations/rental.validation";
+import { createRentalRequestSchema } from "../validations/rental.validation";
 
 const router = Router();
 
-// All rental routes require authentication
 router.use(authenticate);
 
 // Tenant Routes
@@ -25,18 +21,11 @@ router.get(
   rentalController.getMyRentalRequests,
 );
 
-// Landlord Routes
+// Get specific rental request details
 router.get(
-  "/landlord-requests",
-  authorize("LANDLORD", "ADMIN"),
-  rentalController.getLandlordRequests,
-);
-
-// Common Route (Landlord Approve/Reject or Tenant Cancel)
-router.patch(
-  "/:id/status",
-  validate(updateRentalStatusSchema),
-  rentalController.updateRequestStatus,
+  "/:id",
+  authorize("TENANT", "LANDLORD", "ADMIN"),
+  rentalController.getRentalRequestById,
 );
 
 export default router;
