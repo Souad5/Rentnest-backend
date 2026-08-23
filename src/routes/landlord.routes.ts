@@ -10,6 +10,7 @@ const router = Router();
 router.use(authenticate, authorize("LANDLORD", "ADMIN"));
 
 // Property Management Routes
+router.get("/properties", landlordController.getMyProperties);
 router.post("/properties", landlordController.createProperty);
 router.put("/properties/:id", landlordController.updateProperty);
 router.delete("/properties/:id", landlordController.deleteProperty);

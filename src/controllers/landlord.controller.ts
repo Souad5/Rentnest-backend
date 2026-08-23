@@ -9,6 +9,36 @@ const prisma = new PrismaClient();
 // LANDLORD PROPERTY MANAGEMENT
 // ==========================================
 
+// 0. List the authenticated landlord's own properties (all availability states).
+//    The public GET /properties endpoint hard-filters isAvailable=true, so the
+//    dashboard cannot manage rented-out listings through it.
+export const getMyProperties = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const landlordId = req.user!.id;
+
+    const properties = await prisma.property.findMany({
+      where: { landlordId },
+      include: {
+        category: true,
+        _count: { select: { rentalRequests: true, reviews: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Landlord properties fetched successfully",
+      data: properties,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // 1. Create Property Listing
 export const createProperty = async (
   req: AuthRequest,
