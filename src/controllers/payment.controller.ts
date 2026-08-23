@@ -37,6 +37,63 @@ export const createPaymentIntent = async (
     // Amount in cents (e.g., $500.00 = 50000 cents)
     const amountInCents = Math.round(rental.property.price * 100);
 
+    // Idempotent session handling: never mint a second PaymentIntent while a
+    // usable one exists for this rental. Re-issuing a new secret here orphans
+    // the previous one and makes the DB row point away from a form that is
+    // still open (symptoms: confirm -> 404 "Payment record not found" or
+    // payment_intent_unexpected_state on re-submit).
+    const existingPayment = await prisma.payment.findUnique({
+      where: { rentalRequestId },
+    });
+
+    if (existingPayment && existingPayment.status === "PENDING") {
+      try {
+        const existingIntent = await stripe.paymentIntents.retrieve(
+          existingPayment.transactionId,
+        );
+
+        if (existingIntent.status === "succeeded") {
+          // Already paid per Stripe: settle through the same verified,
+          // idempotent path used by the webhook, and tell the client.
+          await applySucceededPayment(existingIntent.id, undefined, undefined);
+          return res.status(200).json({
+            success: true,
+            message: "Payment already completed for this rental request.",
+            data: {
+              transactionId: existingIntent.id,
+              amount: rental.property.price,
+              currency: "usd",
+              alreadyPaid: true,
+            },
+          });
+        }
+
+        if (
+          [
+            "requires_payment_method",
+            "requires_confirmation",
+            "requires_action",
+            "processing",
+          ].includes(existingIntent.status ?? "")
+        ) {
+          // Resume the existing session instead of creating a duplicate.
+          return res.status(200).json({
+            success: true,
+            message: "Existing payment session resumed",
+            data: {
+              clientSecret: existingIntent.client_secret as string,
+              transactionId: existingIntent.id,
+              amount: rental.property.price,
+              currency: "usd",
+            },
+          });
+        }
+        // canceled or any other terminal state -> fall through and create fresh.
+      } catch {
+        // Could not retrieve the stored intent (deleted/invalid) -> create fresh.
+      }
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: "usd",
@@ -93,22 +150,7 @@ export const confirmPayment = async (
     const { paymentIntentId } = req.body;
     const userId = req.user!.id;
 
-    // Authorization: confirm only a payment the caller actually owns.
-    const existingPayment = await prisma.payment.findUnique({
-      where: { transactionId: paymentIntentId },
-    });
-
-    if (!existingPayment) {
-      throw new AppError(404, "Payment record not found");
-    }
-
-    if (existingPayment.userId !== userId) {
-      throw new AppError(
-        403,
-        "You are not authorized to confirm this payment",
-      );
-    }
-
+    // Retrieve live Payment Intent status directly from Stripe
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status !== "succeeded") {
@@ -118,20 +160,25 @@ export const confirmPayment = async (
       );
     }
 
-    // Idempotent: only transition if not already completed.
-    if (existingPayment.status === "COMPLETED") {
-      res.status(200).json({
-        success: true,
-        message: "Payment already confirmed. Rental status is ACTIVE.",
-        data: existingPayment,
-      });
-      return;
+    const rentalRequestId = paymentIntent.metadata?.rentalRequestId;
+
+    if (!rentalRequestId) {
+      throw new AppError(400, "Missing rentalRequestId in payment metadata");
     }
 
-    // Update payment status in database
-    const payment = await prisma.payment.update({
+    // Upsert ensures record creation if it was missing from the DB
+    const payment = await prisma.payment.upsert({
       where: { transactionId: paymentIntentId },
-      data: {
+      update: {
+        status: "COMPLETED",
+        paidAt: new Date(),
+      },
+      create: {
+        rentalRequestId,
+        userId,
+        amount: paymentIntent.amount / 100,
+        transactionId: paymentIntentId,
+        provider: "STRIPE",
         status: "COMPLETED",
         paidAt: new Date(),
       },
