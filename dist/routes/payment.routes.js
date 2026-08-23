@@ -4,6 +4,9 @@ import { authenticate } from "../middlewares/auth";
 import { validate } from "../middlewares/validate";
 import { createPaymentIntentSchema, confirmPaymentSchema, } from "../validations/payment.validation";
 const router = Router();
+// Stripe webhook: public, signature-verified, raw body required.
+// Registered BEFORE `authenticate` so Stripe can call it without a user token.
+router.post("/webhook", paymentController.stripeWebhook);
 // Require login for all payment endpoints
 router.use(authenticate);
 router.post("/create", validate(createPaymentIntentSchema), paymentController.createPaymentIntent);

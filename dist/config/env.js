@@ -12,6 +12,7 @@ const envSchema = z.object({
         .string()
         .min(32, "JWT_SECRET must be at least 32 characters long"),
     STRIPE_SECRET_KEY: z.string().startsWith("sk_"),
+    STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_"),
 });
 export const env = envSchema.parse(process.env);
 //# sourceMappingURL=env.js.map

@@ -10,7 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "webhook:stripe": "stripe listen --forward-to localhost:3000/api/payments/webhook",
+    "webhook:stripe": "stripe listen --forward-to localhost:5000/api/payments/webhook",
     "postinstall": "prisma generate"
   },
   "keywords": [],

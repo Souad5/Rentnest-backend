@@ -102,7 +102,7 @@ export const getPropertyById = async (req, res, next) => {
 export const createProperty = async (req, res, next) => {
     try {
         const landlordId = req.user.id;
-        const { title, description, address, location, price, categoryId } = req.body;
+        const { title, description, address, location, price, categoryId, imageUrl } = req.body;
         const property = await prisma.property.create({
             data: {
                 title,
@@ -112,6 +112,7 @@ export const createProperty = async (req, res, next) => {
                 price,
                 categoryId,
                 landlordId,
+                ...(imageUrl !== undefined ? { imageUrl } : {}),
             },
             include: { category: true },
         });

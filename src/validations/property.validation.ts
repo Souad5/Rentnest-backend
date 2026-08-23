@@ -12,6 +12,10 @@ export const createPropertySchema = z.object({
     location: z.string().min(2, { message: "Location is required" }),
     price: z.number().positive({ message: "Price must be a positive number" }),
     categoryId: z.string().uuid({ message: "Valid Category UUID is required" }),
+    imageUrl: z
+      .string()
+      .url({ message: "Image URL must be a valid URL" })
+      .optional(),
   }),
 });
 
@@ -29,5 +33,9 @@ export const updatePropertySchema = z.object({
     price: z.number().positive().optional(),
     isAvailable: z.boolean().optional(),
     categoryId: z.string().uuid().optional(),
+    imageUrl: z
+      .string()
+      .url({ message: "Image URL must be a valid URL" })
+      .optional(),
   }),
 });

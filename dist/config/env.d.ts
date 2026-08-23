@@ -4,5 +4,6 @@ export declare const env: {
     DATABASE_URL: string;
     JWT_SECRET: string;
     STRIPE_SECRET_KEY: string;
+    STRIPE_WEBHOOK_SECRET: string;
 };
 //# sourceMappingURL=env.d.ts.map

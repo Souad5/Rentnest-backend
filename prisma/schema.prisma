@@ -57,6 +57,7 @@ model Property {
   location    String
   price       Float
   isAvailable Boolean  @default(true)
+  imageUrl    String?
   landlordId  String
   categoryId  String
   createdAt   DateTime @default(now())

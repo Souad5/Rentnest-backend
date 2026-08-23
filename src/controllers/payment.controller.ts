@@ -1,4 +1,4 @@
-import type { Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { AppError } from "../middlewares/errorHandler";
@@ -91,24 +91,41 @@ export const confirmPayment = async (
 ) => {
   try {
     const { paymentIntentId } = req.body;
+    const userId = req.user!.id;
 
-    let paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    // Authorization: confirm only a payment the caller actually owns.
+    const existingPayment = await prisma.payment.findUnique({
+      where: { transactionId: paymentIntentId },
+    });
 
-    // 🛠️ Auto-confirm in non-production environments if payment method hasn't been attached yet
-    if (
-      paymentIntent.status === "requires_payment_method" &&
-      process.env.NODE_ENV !== "production"
-    ) {
-      paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
-        payment_method: "pm_card_visa",
-      });
+    if (!existingPayment) {
+      throw new AppError(404, "Payment record not found");
     }
+
+    if (existingPayment.userId !== userId) {
+      throw new AppError(
+        403,
+        "You are not authorized to confirm this payment",
+      );
+    }
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status !== "succeeded") {
       throw new AppError(
         400,
         `Payment not completed. Status: ${paymentIntent.status}`,
       );
+    }
+
+    // Idempotent: only transition if not already completed.
+    if (existingPayment.status === "COMPLETED") {
+      res.status(200).json({
+        success: true,
+        message: "Payment already confirmed. Rental status is ACTIVE.",
+        data: existingPayment,
+      });
+      return;
     }
 
     // Update payment status in database
@@ -221,4 +238,140 @@ export const getPaymentById = async (
   } catch (error) {
     next(error);
   }
+};
+
+// ==========================================
+// STRIPE WEBHOOK (source of truth for status)
+// ==========================================
+
+// Mark an APPROVED rental's payment as COMPLETED and the rental ACTIVE,
+// driven entirely by a verified Stripe event. Idempotent.
+async function applySucceededPayment(
+  intentId: string,
+  rentalRequestId: string | undefined,
+  userId: string | undefined,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    let payment = await tx.payment.findUnique({
+      where: { transactionId: intentId },
+    });
+
+    if (!payment) {
+      // Payment row may not exist yet (e.g. created outside the app flow).
+      // Only create one when Stripe metadata identifies the rental + user.
+      if (!rentalRequestId || !userId) return;
+      const rental = await tx.rentalRequest.findUnique({
+        where: { id: rentalRequestId },
+        include: { property: true },
+      });
+      if (!rental) return;
+      payment = await tx.payment.create({
+        data: {
+          rentalRequestId,
+          userId,
+          amount: rental.property ? rental.property.price : 0,
+          transactionId: intentId,
+          provider: "STRIPE",
+          status: "COMPLETED",
+          paidAt: new Date(),
+        },
+      });
+    } else if (payment.status === "COMPLETED") {
+      return; // already handled — safe against Stripe retries
+    }
+
+    if (payment.status !== "COMPLETED") {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: { status: "COMPLETED", paidAt: new Date() },
+      });
+    }
+
+    const rental = await tx.rentalRequest.findUnique({
+      where: { id: payment.rentalRequestId },
+    });
+    if (rental && rental.status !== "ACTIVE") {
+      await tx.rentalRequest.update({
+        where: { id: rental.id },
+        data: { status: "ACTIVE" },
+      });
+    }
+  });
+}
+
+// Mark a payment as FAILED when Stripe reports the intent failed/canceled.
+async function applyFailedPayment(intentId: string): Promise<void> {
+  await prisma.payment.updateMany({
+    where: { transactionId: intentId, status: "PENDING" },
+    data: { status: "FAILED" },
+  });
+}
+
+export const stripeWebhook = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const signature = req.headers["stripe-signature"] as string | undefined;
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+
+  if (!signature || !rawBody) {
+    return res.status(400).send("Missing Stripe signature or body");
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET as string,
+    );
+  } catch (err) {
+    return res
+      .status(400)
+      .send(`Webhook signature verification failed: ${(err as Error).message}`);
+  }
+
+  try {
+    switch (event.type) {
+      case "payment_intent.succeeded": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        await applySucceededPayment(
+          intent.id,
+          intent.metadata?.rentalRequestId,
+          intent.metadata?.userId,
+        );
+        break;
+      }
+      case "payment_intent.payment_failed":
+      case "payment_intent.canceled": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        await applyFailedPayment(intent.id);
+        break;
+      }
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+        if (charge.payment_intent) {
+          const intentId =
+            typeof charge.payment_intent === "string"
+              ? charge.payment_intent
+              : charge.payment_intent.id;
+          await prisma.payment.updateMany({
+            where: { transactionId: intentId, status: "COMPLETED" },
+            data: { status: "FAILED" },
+          });
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  } catch (err) {
+    // Acknowledge with 2xx so Stripe does not endlessly retry a bad payload,
+    // but surface the error for monitoring.
+    console.error("Stripe webhook processing error:", err);
+    return res.status(200).json({ received: true, error: true });
+  }
+
+  res.status(200).json({ received: true });
 };

@@ -7,6 +7,7 @@ export declare const createPropertySchema: z.ZodObject<{
         location: z.ZodString;
         price: z.ZodNumber;
         categoryId: z.ZodString;
+        imageUrl: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 export declare const updatePropertySchema: z.ZodObject<{
@@ -21,6 +22,7 @@ export declare const updatePropertySchema: z.ZodObject<{
         price: z.ZodOptional<z.ZodNumber>;
         isAvailable: z.ZodOptional<z.ZodBoolean>;
         categoryId: z.ZodOptional<z.ZodString>;
+        imageUrl: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 //# sourceMappingURL=property.validation.d.ts.map
