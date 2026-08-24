@@ -7,6 +7,7 @@ const router = Router();
 // Protect all endpoints with LANDLORD and ADMIN roles
 router.use(authenticate, authorize("LANDLORD", "ADMIN"));
 // Property Management Routes
+router.get("/properties", landlordController.getMyProperties);
 router.post("/properties", landlordController.createProperty);
 router.put("/properties/:id", landlordController.updateProperty);
 router.delete("/properties/:id", landlordController.deleteProperty);
