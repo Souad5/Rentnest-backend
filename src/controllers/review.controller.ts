@@ -24,19 +24,20 @@ export const createReview = async (
       throw new AppError(404, "Property not found");
     }
 
-    // Verify tenant has an approved or completed rental request for this property
+    // Verify tenant has an approved or active (paid) rental request for this
+    // property. Payment flips APPROVED -> ACTIVE, so both states qualify.
     const validRental = await prisma.rentalRequest.findFirst({
       where: {
         propertyId,
         tenantId,
-        status: "APPROVED",
+        status: { in: ["APPROVED", "ACTIVE"] },
       },
     });
 
     if (!validRental) {
       throw new AppError(
         403,
-        "You can only review properties that you have an approved rental request for",
+        "You can only review properties that you have an approved or active rental request for",
       );
     }
 
