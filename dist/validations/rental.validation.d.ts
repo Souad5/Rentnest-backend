@@ -4,7 +4,6 @@ export declare const createRentalRequestSchema: z.ZodObject<{
         propertyId: z.ZodString;
         startDate: z.ZodString;
         endDate: z.ZodString;
-        specialNotes: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 export declare const updateRentalStatusSchema: z.ZodObject<{
@@ -14,7 +13,6 @@ export declare const updateRentalStatusSchema: z.ZodObject<{
     body: z.ZodObject<{
         status: z.ZodEnum<{
             APPROVED: "APPROVED";
-            CANCELLED: "CANCELLED";
             REJECTED: "REJECTED";
         }>;
     }, z.core.$strip>;

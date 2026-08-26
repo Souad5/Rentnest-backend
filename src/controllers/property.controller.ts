@@ -185,7 +185,16 @@ export const updateProperty = async (
 
     const updatedProperty = await prisma.property.update({
       where: { id },
-      data: req.body,
+      data: {
+        ...(req.body.title !== undefined && { title: req.body.title }),
+        ...(req.body.description !== undefined && { description: req.body.description }),
+        ...(req.body.address !== undefined && { address: req.body.address }),
+        ...(req.body.location !== undefined && { location: req.body.location }),
+        ...(req.body.price !== undefined && { price: req.body.price }),
+        ...(req.body.isAvailable !== undefined && { isAvailable: req.body.isAvailable }),
+        ...(req.body.categoryId !== undefined && { categoryId: req.body.categoryId }),
+        ...(req.body.imageUrl !== undefined && { imageUrl: req.body.imageUrl }),
+      },
     });
 
     res.status(200).json({

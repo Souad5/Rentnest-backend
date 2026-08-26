@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { PrismaClient } from "@prisma/client";
 import { AppError } from "./errorHandler";
+
+const prisma = new PrismaClient();
 
 export interface AuthRequest extends Request {
   user?: {
@@ -9,14 +12,14 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const authenticate = (
+export const authenticate = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
-  const token = req.headers.authorization?.split(" ")[1];
+  const [scheme, token] = (req.headers.authorization ?? "").split(" ");
 
-  if (!token) {
+  if (scheme !== "Bearer" || !token) {
     return next(new AppError(401, "Access denied. No token provided."));
   }
 
@@ -25,6 +28,19 @@ export const authenticate = (
       id: string;
       role: string;
     };
+
+    // Check if user is banned
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { isBanned: true },
+    });
+
+    if (!user || user.isBanned) {
+      return next(
+        new AppError(403, "Your account has been suspended"),
+      );
+    }
+
     req.user = decoded;
     next();
   } catch (err) {

@@ -171,9 +171,10 @@ export const updateCategory = async (
       throw new AppError(404, "Category not found");
     }
 
+    const { name } = req.body;
     const updatedCategory = await prisma.category.update({
       where: { id },
-      data: req.body,
+      data: { name },
     });
 
     res.status(200).json({

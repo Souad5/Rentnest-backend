@@ -125,7 +125,7 @@ export const createPaymentIntent = async (
       },
     });
 
-    res.status(200).json({
+    res.status(201).json({
       success: true,
       message: "Payment intent created successfully",
       data: {
@@ -183,6 +183,14 @@ export const confirmPayment = async (
         paidAt: new Date(),
       },
     });
+
+    // Ownership check: only the tenant who initiated payment or an admin can confirm
+    if (payment.userId !== userId && req.user!.role !== "ADMIN") {
+      throw new AppError(
+        403,
+        "You do not have permission to confirm this payment",
+      );
+    }
 
     // Update rental status from APPROVED to ACTIVE
     await prisma.rentalRequest.update({
@@ -376,7 +384,7 @@ export const stripeWebhook = async (
   } catch (err) {
     return res
       .status(400)
-      .send(`Webhook signature verification failed: ${(err as Error).message}`);
+      .send("Webhook signature verification failed");
   }
 
   try {

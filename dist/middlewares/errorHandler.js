@@ -22,7 +22,6 @@ export const errorHandler = (err, req, res, next) => {
             field: issue.path.join("."),
             message: issue.message,
         }));
-        1;
     }
     res.status(statusCode).json({
         success: false,

@@ -3,6 +3,10 @@ import * as landlordController from "../controllers/landlord.controller";
 import { authenticate, authorize } from "../middlewares/auth";
 import { validate } from "../middlewares/validate";
 import { updateRentalStatusSchema } from "../validations/rental.validation";
+import {
+  createPropertySchema,
+  updatePropertySchema,
+} from "../validations/property.validation";
 
 const router = Router();
 
@@ -11,8 +15,16 @@ router.use(authenticate, authorize("LANDLORD", "ADMIN"));
 
 // Property Management Routes
 router.get("/properties", landlordController.getMyProperties);
-router.post("/properties", landlordController.createProperty);
-router.put("/properties/:id", landlordController.updateProperty);
+router.post(
+  "/properties",
+  validate(createPropertySchema),
+  landlordController.createProperty,
+);
+router.put(
+  "/properties/:id",
+  validate(updatePropertySchema),
+  landlordController.updateProperty,
+);
 router.delete("/properties/:id", landlordController.deleteProperty);
 
 // Rental Request Management Routes

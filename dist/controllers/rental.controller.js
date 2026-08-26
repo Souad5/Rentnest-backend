@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 export const createRentalRequest = async (req, res, next) => {
     try {
         const tenantId = req.user.id;
-        const { propertyId, startDate, endDate, specialNotes } = req.body;
+        const { propertyId, startDate, endDate } = req.body;
         const property = await prisma.property.findUnique({
             where: { id: propertyId },
         });
@@ -35,7 +35,6 @@ export const createRentalRequest = async (req, res, next) => {
                 propertyId,
                 startDate: new Date(startDate),
                 endDate: new Date(endDate),
-                specialNotes,
                 status: "PENDING",
             },
             include: {
