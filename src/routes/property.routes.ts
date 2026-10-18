@@ -4,17 +4,20 @@ import { authenticate, authorize } from "../middlewares/auth";
 import { validate } from "../middlewares/validate";
 import {
   createPropertySchema,
+  propertyIdParamSchema,
   updatePropertySchema,
 } from "../validations/property.validation";
 
 const router = Router();
 
-// Public Routes
-router.get("/categories", propertyController.getCategories);
+// Public Routes (static paths BEFORE /:id)
 router.get("/", propertyController.getProperties);
-router.get("/:id", propertyController.getPropertyById);
+router.get("/categories", propertyController.getCategories);
+router.get("/locations", propertyController.getLocations);
+router.get("/stats", propertyController.getPublicStats);
+router.get("/trending", propertyController.getTrendingProperties);
 
-// Landlord / Admin Protected Routes
+// Landlord / Admin Protected Routes (also aliased under /landlord/properties)
 router.post(
   "/landlord",
   authenticate,
@@ -22,7 +25,6 @@ router.post(
   validate(createPropertySchema),
   propertyController.createProperty,
 );
-
 router.put(
   "/landlord/:id",
   authenticate,
@@ -30,12 +32,15 @@ router.put(
   validate(updatePropertySchema),
   propertyController.updateProperty,
 );
-
 router.delete(
   "/landlord/:id",
   authenticate,
   authorize("LANDLORD", "ADMIN"),
+  validate(propertyIdParamSchema),
   propertyController.deleteProperty,
 );
+
+router.get("/:id", propertyController.getPropertyById);
+router.get("/:id/related", propertyController.getRelatedProperties);
 
 export default router;

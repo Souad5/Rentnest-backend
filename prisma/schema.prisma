@@ -30,12 +30,17 @@ enum PaymentStatus {
 model User {
   id        String   @id @default(uuid())
   name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(TENANT)
-  isBanned  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  email        String   @unique
+  password     String? // null for Google-only accounts
+  role         Role     @default(TENANT)
+  isBanned     Boolean  @default(false)
+  phone        String?
+  avatarUrl    String?
+  bio          String?
+  googleId     String?  @unique
+  authProvider String   @default("LOCAL") // "LOCAL" | "GOOGLE"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   properties     Property[]       @relation("LandlordProperties")
   rentalRequests RentalRequest[]  @relation("TenantRentals")
@@ -44,9 +49,10 @@ model User {
 }
 
 model Category {
-  id         String     @id @default(uuid())
-  name       String     @unique
-  properties Property[]
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  properties  Property[]
 }
 
 model Property {
@@ -57,7 +63,12 @@ model Property {
   location    String
   price       Float
   isAvailable Boolean  @default(true)
-  imageUrl    String?
+  imageUrl    String? // mirrors images[0] (or an explicit URL when images is empty)
+  images      String[] @default([])
+  bedrooms    Int?
+  bathrooms   Int?
+  areaSqft    Int?
+  amenities   String[] @default([])
   landlordId  String
   categoryId  String
   createdAt   DateTime @default(now())
@@ -67,6 +78,10 @@ model Property {
   category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   rentalRequests RentalRequest[]
   reviews        Review[]
+
+  @@index([isAvailable, createdAt])
+  @@index([landlordId])
+  @@index([categoryId])
 }
 
 model RentalRequest {
@@ -82,6 +97,9 @@ model RentalRequest {
   tenant   User      @relation("TenantRentals", fields: [tenantId], references: [id], onDelete: Cascade)
   property Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   payment  Payment?
+
+  @@index([propertyId, status])
+  @@index([tenantId])
 }
 
 model Payment {
@@ -109,4 +127,22 @@ model Review {
 
   tenant   User     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

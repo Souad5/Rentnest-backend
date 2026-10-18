@@ -1,9 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
+import { env } from "../config/env";
 import { AppError } from "./errorHandler";
-
-const prisma = new PrismaClient();
 
 export interface AuthRequest extends Request {
   user?: {
@@ -14,7 +13,7 @@ export interface AuthRequest extends Request {
 
 export const authenticate = async (
   req: AuthRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ) => {
   const [scheme, token] = (req.headers.authorization ?? "").split(" ");
@@ -23,33 +22,36 @@ export const authenticate = async (
     return next(new AppError(401, "Access denied. No token provided."));
   }
 
+  let decoded: { id: string; role: string };
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
-      id: string;
-      role: string;
-    };
+    decoded = jwt.verify(token, env.JWT_SECRET) as { id: string; role: string };
+  } catch {
+    return next(new AppError(401, "Invalid or expired token."));
+  }
 
-    // Check if user is banned
+  try {
+    // Re-read the user so bans and role changes take effect immediately.
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { isBanned: true },
+      select: { id: true, role: true, isBanned: true },
     });
 
-    if (!user || user.isBanned) {
-      return next(
-        new AppError(403, "Your account has been suspended"),
-      );
+    if (!user) {
+      return next(new AppError(401, "Invalid or expired token."));
+    }
+    if (user.isBanned) {
+      return next(new AppError(403, "Your account has been suspended"));
     }
 
-    req.user = decoded;
+    req.user = { id: user.id, role: user.role };
     next();
   } catch (err) {
-    next(new AppError(401, "Invalid or expired token."));
+    next(err);
   }
 };
 
 export const authorize = (...roles: string[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, _res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return next(
         new AppError(

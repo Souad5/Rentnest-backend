@@ -1,10 +1,17 @@
 import type { Request, Response, NextFunction } from "express";
-import { ZodObject } from "zod";
+import type { ZodObject } from "zod";
 
+/**
+ * Validates `{ body, query, params }` against a Zod object schema and strips
+ * unknown fields from `req.body` / `req.params` (mass-assignment protection).
+ *
+ * NOTE: Express 5 exposes `req.query` as a getter, so it is validated but never
+ * reassigned. Controllers read query params via the helpers in utils/query.ts.
+ */
 export const validate = (schema: ZodObject<any>) => {
   return async (
     req: Request,
-    res: Response,
+    _res: Response,
     next: NextFunction,
   ): Promise<void> => {
     try {
@@ -13,8 +20,7 @@ export const validate = (schema: ZodObject<any>) => {
         query: req.query,
         params: req.params,
       });
-      req.body = parsed.body;
-      if (parsed.query) req.query = parsed.query as typeof req.query;
+      if ("body" in parsed) req.body = parsed.body;
       if (parsed.params) req.params = parsed.params as typeof req.params;
       next();
     } catch (error) {

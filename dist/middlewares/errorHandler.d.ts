@@ -5,5 +5,5 @@ export declare class AppError extends Error {
     errorDetails: any;
     constructor(statusCode: number, message: string, errorDetails?: any);
 }
-export declare const errorHandler: (err: any, req: Request, res: Response, next: NextFunction) => void;
+export declare const errorHandler: (err: any, req: Request, res: Response, _next: NextFunction) => void;
 //# sourceMappingURL=errorHandler.d.ts.map

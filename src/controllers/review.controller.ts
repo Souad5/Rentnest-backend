@@ -1,9 +1,17 @@
 import type { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
 import { AppError } from "../middlewares/errorHandler";
 import { type AuthRequest } from "../middlewares/auth";
+import { queryInt } from "../utils/query";
 
-const prisma = new PrismaClient();
+const reviewSelect = {
+  id: true,
+  rating: true,
+  comment: true,
+  createdAt: true,
+  tenant: { select: { id: true, name: true } },
+  property: { select: { id: true, title: true, location: true } },
+} as const;
 
 // 1. Create a Review (Tenant Only)
 export const createReview = async (
@@ -24,13 +32,13 @@ export const createReview = async (
       throw new AppError(404, "Property not found");
     }
 
-    // Verify tenant has an approved or active (paid) rental request for this
-    // property. Payment flips APPROVED -> ACTIVE, so both states qualify.
+    // Verify tenant has an approved, active (paid) or completed rental request
+    // for this property. Payment flips APPROVED -> ACTIVE; finished stays count.
     const validRental = await prisma.rentalRequest.findFirst({
       where: {
         propertyId,
         tenantId,
-        status: { in: ["APPROVED", "ACTIVE"] },
+        status: { in: ["APPROVED", "ACTIVE", "COMPLETED"] },
       },
     });
 
@@ -64,11 +72,7 @@ export const createReview = async (
         rating,
         comment,
       },
-      include: {
-        tenant: {
-          select: { id: true, name: true },
-        },
-      },
+      select: reviewSelect,
     });
 
     res.status(201).json({
@@ -92,10 +96,12 @@ export const getPropertyReviews = async (
 
     const reviews = await prisma.review.findMany({
       where: { propertyId },
-      include: {
-        tenant: {
-          select: { id: true, name: true },
-        },
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+        tenant: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -123,6 +129,56 @@ export const getPropertyReviews = async (
         totalReviews,
         reviews,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 3. Latest reviews across the marketplace (Public) — e.g. homepage testimonials
+export const getLatestReviews = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const limit = queryInt(req.query["limit"], { min: 1, max: 24, fallback: 6, clamp: true });
+    const minRating = queryInt(req.query["minRating"], { min: 1, max: 5, fallback: 1 });
+
+    const reviews = await prisma.review.findMany({
+      where: { rating: { gte: minRating } },
+      select: reviewSelect,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Latest reviews fetched successfully",
+      data: reviews,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 4. Reviews written by the authenticated tenant
+export const getMyReviews = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: { tenantId: req.user!.id },
+      select: reviewSelect,
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Your reviews fetched successfully",
+      data: reviews,
     });
   } catch (error) {
     next(error);

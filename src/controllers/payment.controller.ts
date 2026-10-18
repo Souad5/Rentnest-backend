@@ -1,11 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
+import { env } from "../config/env";
 import { AppError } from "../middlewares/errorHandler";
 import type { AuthRequest } from "../middlewares/auth";
 
-const prisma = new PrismaClient();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
 // 1. Create Stripe Payment Intent for APPROVED Rental Request
 export const createPaymentIntent = async (
@@ -27,6 +27,16 @@ export const createPaymentIntent = async (
       throw new AppError(404, "Rental request not found or unauthorized");
     }
 
+    const existingPayment = await prisma.payment.findUnique({
+      where: { rentalRequestId },
+    });
+
+    // Never overwrite a settled payment (that would orphan the completed
+    // PaymentIntent and charge the tenant twice).
+    if (existingPayment?.status === "COMPLETED") {
+      throw new AppError(400, "This rental has already been paid");
+    }
+
     if (rental.status !== "APPROVED") {
       throw new AppError(
         400,
@@ -42,10 +52,6 @@ export const createPaymentIntent = async (
     // the previous one and makes the DB row point away from a form that is
     // still open (symptoms: confirm -> 404 "Payment record not found" or
     // payment_intent_unexpected_state on re-submit).
-    const existingPayment = await prisma.payment.findUnique({
-      where: { rentalRequestId },
-    });
-
     if (existingPayment && existingPayment.status === "PENDING") {
       try {
         const existingIntent = await stripe.paymentIntents.retrieve(
@@ -55,7 +61,11 @@ export const createPaymentIntent = async (
         if (existingIntent.status === "succeeded") {
           // Already paid per Stripe: settle through the same verified,
           // idempotent path used by the webhook, and tell the client.
-          await applySucceededPayment(existingIntent.id, undefined, undefined);
+          await applySucceededPayment(existingIntent.id, {
+            rentalRequestId,
+            userId,
+            amount: existingIntent.amount / 100,
+          });
           return res.status(200).json({
             success: true,
             message: "Payment already completed for this rental request.",
@@ -107,13 +117,15 @@ export const createPaymentIntent = async (
       },
     });
 
-    // Save or update pending transaction record in Postgres
-    const payment = await prisma.payment.upsert({
+    // Save or update the pending transaction record (never a COMPLETED one —
+    // guarded above).
+    await prisma.payment.upsert({
       where: { rentalRequestId },
       update: {
         transactionId: paymentIntent.id,
         status: "PENDING",
         amount: rental.property.price,
+        paidAt: null,
       },
       create: {
         rentalRequestId,
@@ -147,56 +159,66 @@ export const confirmPayment = async (
   next: NextFunction,
 ) => {
   try {
-    const { paymentIntentId } = req.body;
+    const { paymentIntentId } = req.body as { paymentIntentId: string };
     const userId = req.user!.id;
+    const isAdmin = req.user!.role === "ADMIN";
 
-    // Retrieve live Payment Intent status directly from Stripe
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    let paymentIntent: Stripe.PaymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    } catch {
+      throw new AppError(404, "Payment not found");
+    }
 
-    if (paymentIntent.status !== "succeeded") {
+    const rentalRequestId = paymentIntent.metadata?.["rentalRequestId"];
+    const intentUserId = paymentIntent.metadata?.["userId"];
+
+    if (!rentalRequestId || !intentUserId) {
+      throw new AppError(400, "This payment is not linked to a RentNest rental");
+    }
+
+    // Authorisation BEFORE any DB write: the caller must be the tenant who
+    // created the intent (or an admin), and the rental must belong to them.
+    const rental = await prisma.rentalRequest.findUnique({
+      where: { id: rentalRequestId },
+      select: { id: true, tenantId: true, status: true },
+    });
+
+    if (!rental) {
+      throw new AppError(404, "Rental request not found");
+    }
+    if (!isAdmin && (intentUserId !== userId || rental.tenantId !== userId)) {
+      throw new AppError(403, "You do not have permission to confirm this payment");
+    }
+    if (rental.tenantId !== intentUserId) {
+      throw new AppError(400, "Payment does not match this rental request");
+    }
+    if (rental.status !== "APPROVED" && rental.status !== "ACTIVE") {
       throw new AppError(
         400,
-        `Payment not completed. Status: ${paymentIntent.status}`,
+        `Payments can only be confirmed for approved rentals (current status: ${rental.status})`,
       );
     }
 
-    const rentalRequestId = paymentIntent.metadata?.rentalRequestId;
-
-    if (!rentalRequestId) {
-      throw new AppError(400, "Missing rentalRequestId in payment metadata");
+    if (paymentIntent.status !== "succeeded") {
+      throw new AppError(400, `Payment not completed. Status: ${paymentIntent.status}`);
     }
 
-    // Upsert ensures record creation if it was missing from the DB
-    const payment = await prisma.payment.upsert({
-      where: { transactionId: paymentIntentId },
-      update: {
-        status: "COMPLETED",
-        paidAt: new Date(),
-      },
-      create: {
-        rentalRequestId,
-        userId,
-        amount: paymentIntent.amount / 100,
-        transactionId: paymentIntentId,
-        provider: "STRIPE",
-        status: "COMPLETED",
-        paidAt: new Date(),
-      },
+    // Settle through the same idempotent transaction the webhook uses.
+    await applySucceededPayment(paymentIntent.id, {
+      rentalRequestId,
+      userId: rental.tenantId,
+      amount: paymentIntent.amount / 100,
     });
 
-    // Ownership check: only the tenant who initiated payment or an admin can confirm
-    if (payment.userId !== userId && req.user!.role !== "ADMIN") {
-      throw new AppError(
-        403,
-        "You do not have permission to confirm this payment",
-      );
+    const payment = await prisma.payment.findUnique({
+      where: { transactionId: paymentIntent.id },
+    });
+
+    if (!payment) {
+      // Another payment already settled this rental under a different intent.
+      throw new AppError(409, "This rental has already been paid with a different payment");
     }
-
-    // Update rental status from APPROVED to ACTIVE
-    await prisma.rentalRequest.update({
-      where: { id: payment.rentalRequestId },
-      data: { status: "ACTIVE" },
-    });
 
     res.status(200).json({
       success: true,
@@ -300,11 +322,10 @@ export const getPaymentById = async (
 // ==========================================
 
 // Mark an APPROVED rental's payment as COMPLETED and the rental ACTIVE,
-// driven entirely by a verified Stripe event. Idempotent.
+// driven by a verified Stripe PaymentIntent. Idempotent (safe on retries).
 async function applySucceededPayment(
   intentId: string,
-  rentalRequestId: string | undefined,
-  userId: string | undefined,
+  fallback: { rentalRequestId?: string | undefined; userId?: string | undefined; amount?: number | undefined },
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     let payment = await tx.payment.findUnique({
@@ -312,45 +333,49 @@ async function applySucceededPayment(
     });
 
     if (!payment) {
-      // Payment row may not exist yet (e.g. created outside the app flow).
-      // Only create one when Stripe metadata identifies the rental + user.
+      // Payment row may not exist yet (e.g. intent re-issued, or created
+      // outside the app flow). Only create one when Stripe metadata
+      // identifies the rental + user.
+      const { rentalRequestId, userId } = fallback;
       if (!rentalRequestId || !userId) return;
       const rental = await tx.rentalRequest.findUnique({
         where: { id: rentalRequestId },
-        include: { property: true },
+        include: { property: { select: { price: true } }, payment: true },
       });
       if (!rental) return;
-      payment = await tx.payment.create({
-        data: {
-          rentalRequestId,
-          userId,
-          amount: rental.property ? rental.property.price : 0,
-          transactionId: intentId,
-          provider: "STRIPE",
-          status: "COMPLETED",
-          paidAt: new Date(),
-        },
-      });
+      if (rental.payment?.status === "COMPLETED") return; // already settled by another intent
+
+      const amount = fallback.amount ?? rental.property.price;
+      payment = rental.payment
+        ? await tx.payment.update({
+            where: { id: rental.payment.id },
+            data: { transactionId: intentId, amount, status: "COMPLETED", paidAt: new Date() },
+          })
+        : await tx.payment.create({
+            data: {
+              rentalRequestId,
+              userId,
+              amount,
+              transactionId: intentId,
+              provider: "STRIPE",
+              status: "COMPLETED",
+              paidAt: new Date(),
+            },
+          });
     } else if (payment.status === "COMPLETED") {
       return; // already handled — safe against Stripe retries
-    }
-
-    if (payment.status !== "COMPLETED") {
+    } else {
       await tx.payment.update({
         where: { id: payment.id },
         data: { status: "COMPLETED", paidAt: new Date() },
       });
     }
 
-    const rental = await tx.rentalRequest.findUnique({
-      where: { id: payment.rentalRequestId },
+    // Only an APPROVED rental becomes ACTIVE (never resurrect REJECTED/COMPLETED).
+    await tx.rentalRequest.updateMany({
+      where: { id: payment.rentalRequestId, status: "APPROVED" },
+      data: { status: "ACTIVE" },
     });
-    if (rental && rental.status !== "ACTIVE") {
-      await tx.rentalRequest.update({
-        where: { id: rental.id },
-        data: { status: "ACTIVE" },
-      });
-    }
   });
 }
 
@@ -379,7 +404,7 @@ export const stripeWebhook = async (
     event = stripe.webhooks.constructEvent(
       rawBody,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET as string,
+      env.STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
     return res
@@ -391,11 +416,11 @@ export const stripeWebhook = async (
     switch (event.type) {
       case "payment_intent.succeeded": {
         const intent = event.data.object as Stripe.PaymentIntent;
-        await applySucceededPayment(
-          intent.id,
-          intent.metadata?.rentalRequestId,
-          intent.metadata?.userId,
-        );
+        await applySucceededPayment(intent.id, {
+          rentalRequestId: intent.metadata?.["rentalRequestId"],
+          userId: intent.metadata?.["userId"],
+          amount: intent.amount / 100,
+        });
         break;
       }
       case "payment_intent.payment_failed":
@@ -406,15 +431,27 @@ export const stripeWebhook = async (
       }
       case "charge.refunded": {
         const charge = event.data.object as Stripe.Charge;
-        if (charge.payment_intent) {
+        // `charge.refunded` also fires for partial refunds; only a full refund
+        // (charge.refunded === true) voids the payment.
+        if (!charge.refunded) {
+          console.warn(
+            `Stripe partial refund (${charge.amount_refunded}/${charge.amount}) for charge ${charge.id} — payment left COMPLETED`,
+          );
+        } else if (charge.payment_intent) {
           const intentId =
             typeof charge.payment_intent === "string"
               ? charge.payment_intent
               : charge.payment_intent.id;
-          await prisma.payment.updateMany({
+          const result = await prisma.payment.updateMany({
             where: { transactionId: intentId, status: "COMPLETED" },
             data: { status: "FAILED" },
           });
+          // Refunds need human follow-up (the rental stays ACTIVE until the
+          // landlord/admin decides), so make them visible in the logs.
+          console.warn(
+            `Stripe refund received for PaymentIntent ${intentId}` +
+              (result.count ? " — payment marked FAILED" : " — no matching completed payment"),
+          );
         }
         break;
       }
@@ -422,10 +459,10 @@ export const stripeWebhook = async (
         break;
     }
   } catch (err) {
-    // Acknowledge with 2xx so Stripe does not endlessly retry a bad payload,
-    // but surface the error for monitoring.
+    // Handlers are idempotent, so let Stripe retry with backoff instead of
+    // silently dropping the event.
     console.error("Stripe webhook processing error:", err);
-    return res.status(200).json({ received: true, error: true });
+    return res.status(500).json({ received: false });
   }
 
   res.status(200).json({ received: true });

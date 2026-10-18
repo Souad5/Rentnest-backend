@@ -1,31 +1,40 @@
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
+import { env } from "../config/env";
 import { AppError } from "./errorHandler";
-const prisma = new PrismaClient();
-export const authenticate = async (req, res, next) => {
+export const authenticate = async (req, _res, next) => {
     const [scheme, token] = (req.headers.authorization ?? "").split(" ");
     if (scheme !== "Bearer" || !token) {
         return next(new AppError(401, "Access denied. No token provided."));
     }
+    let decoded;
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        // Check if user is banned
+        decoded = jwt.verify(token, env.JWT_SECRET);
+    }
+    catch {
+        return next(new AppError(401, "Invalid or expired token."));
+    }
+    try {
+        // Re-read the user so bans and role changes take effect immediately.
         const user = await prisma.user.findUnique({
             where: { id: decoded.id },
-            select: { isBanned: true },
+            select: { id: true, role: true, isBanned: true },
         });
-        if (!user || user.isBanned) {
+        if (!user) {
+            return next(new AppError(401, "Invalid or expired token."));
+        }
+        if (user.isBanned) {
             return next(new AppError(403, "Your account has been suspended"));
         }
-        req.user = decoded;
+        req.user = { id: user.id, role: user.role };
         next();
     }
     catch (err) {
-        next(new AppError(401, "Invalid or expired token."));
+        next(err);
     }
 };
 export const authorize = (...roles) => {
-    return (req, res, next) => {
+    return (req, _res, next) => {
         if (!req.user || !roles.includes(req.user.role)) {
             return next(new AppError(403, "Forbidden: You do not have permission to access this resource"));
         }

@@ -1,10 +1,21 @@
 import type { Request, Response, NextFunction } from "express";
-import { type AuthRequest } from "../middlewares/auth";
-export declare const getAllUsers: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+import type { AuthRequest } from "../middlewares/auth";
+export declare const getStats: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const getAllUsers: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
 export declare const toggleUserBan: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
-export declare const getAllSystemProperties: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const getAllSystemProperties: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const setPropertyAvailability: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const deleteSystemProperty: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const getAllSystemRentals: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const getAllPayments: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const getAllCategories: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
 export declare const createCategory: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 export declare const updateCategory: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 export declare const deleteCategory: (req: Request, res: Response, next: NextFunction) => Promise<void>;
-export declare const getAllSystemRentals: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const getAllReviews: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const deleteReview: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const getMessages: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const setMessageRead: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const deleteMessage: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const getSubscribers: (_req: Request, res: Response, next: NextFunction) => Promise<void>;
 //# sourceMappingURL=admin.controller.d.ts.map

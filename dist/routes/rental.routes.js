@@ -8,6 +8,7 @@ router.use(authenticate);
 // Tenant Routes
 router.post("/", authorize("TENANT"), validate(createRentalRequestSchema), rentalController.createRentalRequest);
 router.get("/my-requests", authorize("TENANT"), rentalController.getMyRentalRequests);
+router.get("/stats", authorize("TENANT"), rentalController.getTenantStats);
 // Get specific rental request details
 router.get("/:id", authorize("TENANT", "LANDLORD", "ADMIN"), rentalController.getRentalRequestById);
 export default router;

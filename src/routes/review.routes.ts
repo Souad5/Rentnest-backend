@@ -6,10 +6,12 @@ import { createReviewSchema } from "../validations/review.validation";
 
 const router = Router();
 
-// Public Route: Fetch reviews and average rating for a property
+// Public
+router.get("/latest", reviewController.getLatestReviews);
 router.get("/property/:propertyId", reviewController.getPropertyReviews);
 
-// Protected Route: Submit a review (Tenant only)
+// Tenant
+router.get("/my", authenticate, authorize("TENANT"), reviewController.getMyReviews);
 router.post(
   "/",
   authenticate,

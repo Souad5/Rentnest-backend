@@ -4,7 +4,13 @@ import { authenticate, authorize } from "../middlewares/auth";
 import { validate } from "../middlewares/validate";
 import {
   banUserSchema,
+  categoryIdParamSchema,
   categorySchema,
+  messageIdParamSchema,
+  messageReadSchema,
+  propertyAvailabilitySchema,
+  propertyIdParamSchema,
+  reviewIdParamSchema,
   updateCategorySchema,
 } from "../validations/admin.validation";
 
@@ -13,31 +19,47 @@ const router = Router();
 // Protect all admin endpoints with authentication and ADMIN role check
 router.use(authenticate, authorize("ADMIN"));
 
-// User Management Routes
+router.get("/stats", adminController.getStats);
+
+// Users
 router.get("/users", adminController.getAllUsers);
-router.patch(
-  "/users/:id",
-  validate(banUserSchema),
-  adminController.toggleUserBan,
-);
+router.patch("/users/:id", validate(banUserSchema), adminController.toggleUserBan);
 
-// Property Management Routes
+// Properties
 router.get("/properties", adminController.getAllSystemProperties);
+router.patch(
+  "/properties/:id",
+  validate(propertyAvailabilitySchema),
+  adminController.setPropertyAvailability,
+);
+router.delete(
+  "/properties/:id",
+  validate(propertyIdParamSchema),
+  adminController.deleteSystemProperty,
+);
 
-// Rental Request Management Routes
+// Rentals & payments
 router.get("/rentals", adminController.getAllSystemRentals);
+router.get("/payments", adminController.getAllPayments);
 
-// Category Management Routes
-router.post(
-  "/categories",
-  validate(categorySchema),
-  adminController.createCategory,
-);
-router.put(
+// Categories
+router.get("/categories", adminController.getAllCategories);
+router.post("/categories", validate(categorySchema), adminController.createCategory);
+router.put("/categories/:id", validate(updateCategorySchema), adminController.updateCategory);
+router.delete(
   "/categories/:id",
-  validate(updateCategorySchema),
-  adminController.updateCategory,
+  validate(categoryIdParamSchema),
+  adminController.deleteCategory,
 );
-router.delete("/categories/:id", adminController.deleteCategory);
+
+// Reviews
+router.get("/reviews", adminController.getAllReviews);
+router.delete("/reviews/:id", validate(reviewIdParamSchema), adminController.deleteReview);
+
+// Contact messages & newsletter
+router.get("/messages", adminController.getMessages);
+router.patch("/messages/:id", validate(messageReadSchema), adminController.setMessageRead);
+router.delete("/messages/:id", validate(messageIdParamSchema), adminController.deleteMessage);
+router.get("/subscribers", adminController.getSubscribers);
 
 export default router;

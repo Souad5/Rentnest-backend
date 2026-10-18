@@ -15,11 +15,8 @@ router.post(
   validate(createRentalRequestSchema),
   rentalController.createRentalRequest,
 );
-router.get(
-  "/my-requests",
-  authorize("TENANT"),
-  rentalController.getMyRentalRequests,
-);
+router.get("/my-requests", authorize("TENANT"), rentalController.getMyRentalRequests);
+router.get("/stats", authorize("TENANT"), rentalController.getTenantStats);
 
 // Get specific rental request details
 router.get(
